@@ -448,5 +448,3 @@ kubectl delete -k overlays/prod
 ---
 
 ### License
-
-MIT (or your choice)
