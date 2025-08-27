@@ -1,6 +1,6 @@
 # Kustomization Demo — Environment‑Aware Kubernetes Manifests
 
-> A portfolio‑friendly, hands‑on demo of **Kustomize** showing how to manage reusable Kubernetes manifests with environment overlays (`dev`, `staging`, `prod`) — no templating, just pure YAML.
+> A hands‑on demo of **Kustomize** showing how to manage reusable Kubernetes manifests with environment overlays (`dev`, `staging`, `prod`) — no templating, just pure YAML.
 
 ---
 
@@ -9,7 +9,7 @@
 - Explain **what Kustomize is** and **why to use it**.
 - Provide a **clean folder layout** (base + overlays) you can copy‑paste.
 - Offer **ready‑to‑run commands** to *see* the benefits: build, diff, switch environments, change images, generate config.
-- Be **GitOps‑ready** (can be used later with Argo CD/Flux in a separate repo).
+- Be **GitOps‑ready** (can be used later with Argo CD/Flux).
 
 ---
 
@@ -30,7 +30,7 @@ kubectl apply -k overlays/dev
 
 ---
 
-## 📁 Repository Structure (suggested)
+## 📁 Repository Structure (Basic)
 
 ```text
 kustomization-demo/
@@ -52,102 +52,9 @@ kustomization-demo/
 └─ README.md
 ```
 
-### `base/` — shared manifests
-
-**`base/deployment.yaml`**
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-app
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: demo-app
-  template:
-    metadata:
-      labels:
-        app: demo-app
-    spec:
-      containers:
-        - name: demo-app
-          image: nginx:1.25
-          ports:
-            - containerPort: 80
-```
-
-**`base/service.yaml`**
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: demo-app
-spec:
-  type: ClusterIP
-  selector:
-    app: demo-app
-  ports:
-    - port: 80
-      targetPort: 80
-```
-
-**`base/kustomization.yaml`**
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - deployment.yaml
-  - service.yaml
-
-commonLabels:
-  app.kubernetes.io/name: demo-app
-  app.kubernetes.io/part-of: kustomization-demo
-```
-
----
-
 ## 🔀 Overlays — environment differences
 
 ### 1) `overlays/dev/` — fast inner‑loop
-
-**`overlays/dev/kustomization.yaml`**
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - ../../base
-
-namePrefix: dev-
-namespace: demo-dev
-
-patches:
-  - path: patch-replicas.yaml
-    target:
-      kind: Deployment
-      name: demo-app
-
-configMapGenerator:
-  - name: app-config
-    literals:
-      - APP_ENV=dev
-      - WELCOME_MESSAGE=hello-from-dev
-
-generatorOptions:
-  disableNameSuffixHash: false
-```
-
-**`overlays/dev/patch-replicas.yaml`**
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-app
-spec:
-  replicas: 1
-```
 
 > **What this shows:** small replica count, separate namespace, name prefix, and a generated ConfigMap (with hash so Pods roll when config changes).
 
@@ -155,125 +62,17 @@ spec:
 
 ### 2) `overlays/staging/` — closer to prod, resource tuning
 
-**`overlays/staging/kustomization.yaml`**
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - ../../base
-
-namePrefix: stg-
-namespace: demo-staging
-
-patches:
-  - path: patch-resources.yaml
-    target:
-      kind: Deployment
-      name: demo-app
-
-configMapGenerator:
-  - name: app-config
-    literals:
-      - APP_ENV=staging
-```
-
-**`overlays/staging/patch-resources.yaml`**
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-app
-spec:
-  template:
-    spec:
-      containers:
-        - name: demo-app
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
-```
-
 > **What this shows:** resource requests/limits and staged namespace/prefix. Kustomize updates references to generated names automatically.
 
 ---
 
 ### 3) `overlays/prod/` — scaling + HPA + image pinning
 
-**`overlays/prod/kustomization.yaml`**
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-
-resources:
-  - ../../base
-  - hpa.yaml
-
-namePrefix: prod-
-namespace: demo-prod
-
-# Pin or override images per environment
-images:
-  - name: nginx
-    newTag: "1.27.2"
-
-patches:
-  - path: patch-image-tag.yaml
-    target:
-      kind: Deployment
-      name: demo-app
-
-configMapGenerator:
-  - name: app-config
-    literals:
-      - APP_ENV=prod
-```
-
-**`overlays/prod/hpa.yaml`**
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: demo-app-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: demo-app
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
-```
-
-**`overlays/prod/patch-image-tag.yaml`** (optional explicit patch)
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo-app
-spec:
-  template:
-    spec:
-      containers:
-        - name: demo-app
-          image: nginx:1.27.2
-```
-
 > **What this shows:** prod namespace/prefix, **HPA**, and **image overrides**. You can control rollout strategy/replicas via patches as needed.
 
 ---
 
-## 🧪 Commands That Show the Advantage of Kustomize
+## 🧪 Commands
 
 > You can run these from the repo root after adding the files as shown above.
 
@@ -425,15 +224,6 @@ This catches broken patches or schema mismatches early.
 - **Fields not patched** → Make sure patch path matches actual YAML structure and container name.
 - **Generator not rolling pods** → Ensure you reference the generated ConfigMap/Secret by name in Deployment; Kustomize will update references when the name hash changes.
 - **Different kubectl/kustomize versions** → If you use the standalone CLI, align versions with CI to avoid drift.
-
----
-
-## 📚 Why this repo is useful in a portfolio
-
-- Shows **clean structure** (base + overlays).
-- Demonstrates **practical features** (patches, generators, images, HPA).
-- Provides **runnable commands** to *see* the value of Kustomize quickly.
-- Ready to plug into a **GitOps tool** later (Argo CD/Flux) without changing the layout.
 
 ---
 
